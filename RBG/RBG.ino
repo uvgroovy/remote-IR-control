@@ -185,24 +185,22 @@ uint16_t ontime, offtime;
 #define FALSE 0
 #define TRUE 1
 
+
 void setup()   {
+
   Serial.begin(9600);
 
   TCCR2A = 0;
   TCCR2B = 0;
 
-  digitalWrite(LED, LOW);
   digitalWrite(IRLED, LOW);
   digitalWrite(DBG, LOW);     // debug
-  pinMode(LED, OUTPUT);
   pinMode(IRLED, OUTPUT);
   pinMode(DBG, OUTPUT);       // debug
 
   delay_ten_us(5000);            // Let everything settle for a bit
-
-
-  setupSpiSlave();
   
+  setupSpiSlave();
   
   // Indicate how big our database is
   DEBUGP(putstring("Ready!\n  "););
@@ -258,8 +256,7 @@ ISR (SPI_STC_vect)
 // main loop - wait for flag set in interrupt routine
 void loop()
 {
-  if (process_it)
-    {
+  if (process_it) {
     pos = 0;
     process_it = false;
     IrCode code = *(IrCode*)buf;
@@ -281,14 +278,17 @@ void loop()
 #endif
 
     sendCode(code, reinterpret_cast<uint16_t*>(buf + sizeof(IrCode)), reinterpret_cast<uint8_t*>(buf + sizeof(IrCode) + code.size_times*sizeof(uint16_t)));
-    }  // end of flag set
+ 
+    } else {
+     delay(1000);
+    } // end of flag set
     
 }  // end of loop
 void sendCode(IrCode code, const uint16_t* times, const uint8_t* codes) {
 
 
     // Read the carrier frequency from the first byte of code structure
-    const uint8_t freq = freq_to_timerval(code.freq);
+    const uint8_t freq = (code.freq == 0) ? 0 : freq_to_timerval(code.freq);
     // set OCR for Timer1 to output this POWER code's carrier frequency
     OCR2A = freq;
     OCR2B = freq / 3; // 33% duty cycle
@@ -356,7 +356,6 @@ void sendCode(IrCode code, const uint16_t* times, const uint8_t* codes) {
       xmitCodeElement(ontime, offtime, (freq!=0));
     }
     sei();
-
 
 }
 
