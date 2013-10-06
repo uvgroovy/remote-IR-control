@@ -11,8 +11,10 @@
 #define EU 0
 
 // What pins do what
-#define DBG 12
+// #define DBG 12 // used by SPOI
+#define DBG 9
 // #define LED 13 Don't want to mess with the led, as SPI uses pin 13 too
+#define LED 8
 #define IRLED 3
 
 // Lets us calculate the size of the NA/EU databases

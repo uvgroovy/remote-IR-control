@@ -34,11 +34,10 @@ TV-B-Gone Firmware version 1.2
 #include <avr/sleep.h>
 #include <SPI.h>
 
-
 void xmitCodeElement(uint16_t ontime, uint16_t offtime, uint8_t PWM_code );
 void delay_ten_us(uint16_t us);
 
-char buf [256];
+uint8_t buf [256];
 
 uint8_t bitsleft_r = 0;
 uint8_t bits_r=0;
@@ -78,6 +77,40 @@ This project transmits a bunch of TV POWER codes, one right after the other,
  North America and 100+ POWER codes for Europe. You can select which region
  to use by soldering a 10K pulldown resistor.
  */
+
+// This function quickly pulses the visible LED (connected to PB0, pin 5)
+// This will indicate to the user that a code is being transmitted
+void quickflashLED( void ) {
+  digitalWrite(LED, HIGH);
+  delay_ten_us(3000);   // 30 millisec delay
+  digitalWrite(LED, LOW);
+}
+
+void slowflashLED( void ) {
+  digitalWrite(LED, HIGH);
+  delay_ten_us(30000);   // 300 millisec delay
+  digitalWrite(LED, LOW);
+}
+
+// This function just flashes the visible LED a couple times, used to
+// tell the user what region is selected
+void quickflashLEDx( uint8_t x ) {
+  quickflashLED();
+  while(--x) {
+    delay_ten_us(15000);     // 150 millisec delay between flahes
+    quickflashLED();
+  }
+}
+// This function just flashes the visible LED a couple times, used to
+// tell the user what region is selected
+void slowflashLEDx( uint8_t x ) {
+  slowflashLED();
+  while(--x) {
+    delay_ten_us(50000);     // 150 millisec delay between flahes
+    slowflashLED();
+  }
+}
+
 
 
 /*
@@ -131,8 +164,6 @@ uint8_t read_bits(const uint8_t* codes, uint8_t count)
 {
   uint8_t i;
   uint8_t tmp=0;
-  
-  
 
   // we need to read back count bytes
   for (i=0; i<count; i++) {
@@ -196,6 +227,7 @@ void setup()   {
   digitalWrite(IRLED, LOW);
   digitalWrite(DBG, LOW);     // debug
   pinMode(IRLED, OUTPUT);
+  pinMode(LED, OUTPUT);
   pinMode(DBG, OUTPUT);       // debug
 
   delay_ten_us(5000);            // Let everything settle for a bit
@@ -277,7 +309,23 @@ void loop()
     putstring("\n");
 #endif
 
-    sendCode(code, reinterpret_cast<uint16_t*>(buf + sizeof(IrCode)), reinterpret_cast<uint8_t*>(buf + sizeof(IrCode) + code.size_times*sizeof(uint16_t)));
+    const uint16_t* times = reinterpret_cast<uint16_t*>(buf + sizeof(IrCode));
+    const uint8_t* codes = reinterpret_cast<uint8_t*>(buf + sizeof(IrCode) + code.size_times*sizeof(uint16_t));
+    sendCode(code, times, codes);
+    quickflashLEDx(3);
+ 
+    
+#if DEBUG
+    uint16_t  checksum = 0;
+    for (int i = 0; i < bufSize; ++i) {
+        checksum += buf[i];
+    }    
+
+
+    putstring("\nchecksum: ");
+    putnum_ud(checksum);
+    putstring("\n");
+#endif
  
     } else {
      delay(1000);
@@ -293,7 +341,16 @@ void sendCode(IrCode code, const uint16_t* times, const uint8_t* codes) {
     OCR2A = freq;
     OCR2B = freq / 3; // 33% duty cycle
 
+
+    // Get the number of pairs, the second byte from the code struct
+    const uint8_t numpairs = code.numpairs;
+    
+    // Get the number of bits we use to index into the timer table
+    // This is the third byte of the structure
+    const uint8_t bitcompression = code.bitcompression;
+    
     // Print out the frequency of the carrier and the PWM settings
+#if DEBUG
     DEBUGP(putstring("\n\rOCR1: ");
     putnum_ud(freq);
     );
@@ -301,19 +358,14 @@ void sendCode(IrCode code, const uint16_t* times, const uint8_t* codes) {
     putstring("\n\rFreq: ");  
     putnum_ud(F_CPU/x);
     );
-
-    // Get the number of pairs, the second byte from the code struct
-    const uint8_t numpairs = code.numpairs;
     DEBUGP(putstring("\n\rOn/off pairs: ");
     putnum_ud(numpairs));
 
-    // Get the number of bits we use to index into the timer table
-    // This is the third byte of the structure
-    const uint8_t bitcompression = code.bitcompression;
     DEBUGP(putstring("\n\rCompression: ");
     putnum_ud(bitcompression);
     putstring("\n\r"));
 
+#endif
 
     // Transmit all codeElements for this POWER code
     // (a codeElement is an onTime and an offTime)
@@ -321,25 +373,9 @@ void sendCode(IrCode code, const uint16_t* times, const uint8_t* codes) {
     // frequency for the length of time specified in onTime
     // transmitting offTime means no output from the IR emitters for the
     // length of time specified in offTime
-    bits_byte_count = 0;
-#if DEBUG
 
-    // print out all of the pulse pairs
-    for (uint8_t k=0; k<numpairs; k++) {
-      uint8_t ti;
-      ti = (read_bits(codes, bitcompression)) << 1;
-      // read the onTime and offTime from the program memory
-      ontime = times[ti];
-      offtime = times[ti+1];
-      DEBUGP(putstring("\n\rti = ");
-      putnum_ud(ti>>1);
-      putstring("\tPair = ");
-      putnum_ud(ontime));
-      DEBUGP(putstring("\t");
-      putnum_ud(offtime));
-    }
-#endif
-    bits_byte_count = 0;
+    
+    bitsleft_r = bits_r = bits_byte_count = 0;
     // For EACH pair in this code....
     cli();
     for (uint8_t k=0; k<numpairs; k++) {
@@ -357,6 +393,25 @@ void sendCode(IrCode code, const uint16_t* times, const uint8_t* codes) {
     }
     sei();
 
+#if DEBUG
+
+    bitsleft_r = bits_r = bits_byte_count = 0;
+
+    // print out all of the pulse pairs
+    for (uint8_t k=0; k<numpairs; k++) {
+      uint8_t ti;
+      ti = (read_bits(codes, bitcompression)) << 1;
+      // read the onTime and offTime from the program memory
+      ontime = times[ti];
+      offtime = times[ti+1];
+      DEBUGP(putstring("\n\rti = ");
+      putnum_ud(ti>>1);
+      putstring("\tPair = ");
+      putnum_ud(ontime));
+      DEBUGP(putstring("\t");
+      putnum_ud(offtime));
+    }
+#endif
 }
 
 /****************************** LED AND DELAY FUNCTIONS ********/
