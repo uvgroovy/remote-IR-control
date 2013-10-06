@@ -34,7 +34,6 @@ TV-B-Gone Firmware version 1.2
 #include <avr/sleep.h>
 #include <SPI.h>
 
-
 void xmitCodeElement(uint16_t ontime, uint16_t offtime, uint8_t PWM_code );
 void delay_ten_us(uint16_t us);
 
