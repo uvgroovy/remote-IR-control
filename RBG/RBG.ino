@@ -34,13 +34,17 @@ TV-B-Gone Firmware version 1.2
 #include <avr/sleep.h>
 #include <SPI.h>
 
+#define DEBUG 1
+
+
 void xmitCodeElement(uint16_t ontime, uint16_t offtime, uint8_t PWM_code );
 void delay_ten_us(uint16_t us);
 
-char buf [200];
+char buf [256];
 
 uint8_t bitsleft_r = 0;
 uint8_t bits_r=0;
+uint8_t bits_byte_count = 0;
 
 volatile uint16_t bufSize = 0;
 volatile byte pos = 0;
@@ -125,7 +129,7 @@ void xmitCodeElement(uint16_t ontime, uint16_t offtime, uint8_t PWM_code )
 
 
 // we cant read more than 8 bits at a time so dont try!
-uint8_t read_bits(const uint8_t* codes, uint8_t* pos, uint8_t count)
+uint8_t read_bits(const uint8_t* codes, uint8_t count)
 {
   uint8_t i;
   uint8_t tmp=0;
@@ -137,7 +141,7 @@ uint8_t read_bits(const uint8_t* codes, uint8_t* pos, uint8_t count)
     // check if the 8-bit buffer we have has run out
     if (bitsleft_r == 0) {
       // in which case we read a new byte in
-      bits_r = codes[(*pos)++];
+      bits_r = codes[bits_byte_count++];
       // and reset the buffer size (8 bites in a byte)
       bitsleft_r = 8;
     }
@@ -217,7 +221,7 @@ void setupSpiSlave (void)
   SPCR |= _BV(SPE);
   
   // get ready for an interrupt 
-  pos = 0;   // buffer empty
+  bits_byte_count = 0;   // buffer empty
   process_it = false;
  
   // now turn on interrupts
@@ -295,8 +299,8 @@ void sendCode(IrCode code, const uint16_t* times, const uint8_t* codes) {
     DEBUGP(putstring("\n\rOCR1: ");
     putnum_ud(freq);
     );
-    DEBUGP(uint16_t x = (freq+1) * 2;
-    putstring("\n\rFreq: ");
+    DEBUGP(uint16_t x = (freq+1) * 8;
+    putstring("\n\rFreq: ");  
     putnum_ud(F_CPU/x);
     );
 
@@ -319,13 +323,13 @@ void sendCode(IrCode code, const uint16_t* times, const uint8_t* codes) {
     // frequency for the length of time specified in onTime
     // transmitting offTime means no output from the IR emitters for the
     // length of time specified in offTime
-    uint8_t count = 0;
+    bits_byte_count = 0;
 #if DEBUG
 
     // print out all of the pulse pairs
     for (uint8_t k=0; k<numpairs; k++) {
       uint8_t ti;
-      ti = (read_bits(codes, &count, bitcompression)) * 2;
+      ti = (read_bits(codes, bitcompression)) << 1;
       // read the onTime and offTime from the program memory
       ontime = times[ti];
       offtime = times[ti+1];
@@ -336,9 +340,8 @@ void sendCode(IrCode code, const uint16_t* times, const uint8_t* codes) {
       DEBUGP(putstring("\t");
       putnum_ud(offtime));
     }
-    return;
 #endif
-
+    bits_byte_count = 0;
     // For EACH pair in this code....
     cli();
     for (uint8_t k=0; k<numpairs; k++) {
@@ -346,7 +349,7 @@ void sendCode(IrCode code, const uint16_t* times, const uint8_t* codes) {
 
       // Read the next 'n' bits as indicated by the compression variable
       // The multiply by 4 because there are 2 timing numbers per pair
-      ti = (read_bits(codes, &count, bitcompression)) * 2;
+      ti = read_bits(codes, bitcompression) << 1;
 
       // read the onTime and offTime from the program memory
       ontime = times[ti];  // read word 1 - ontime
