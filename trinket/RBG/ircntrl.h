@@ -2,20 +2,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// The TV-B-Gone for Arduino can use
-//   either the EU or the NA database of POWER CODES
-// ` is for Europe, Middle East, Australia, New Zealand, and some countries in Africa and South America
-// NA is for North America, Asia, and the rest of the world not covered by EU
-
-// Two regions!
-#define NA 1
-#define EU 0
 
 // What pins do what
 // #define DBG 12 // used by SPOI
 #define DBG 9
 // #define LED 13 Don't want to mess with the led, as SPI uses pin 13 too
-#define LED 8
 #define IRLED 3
 
 // Lets us calculate the size of the NA/EU databases

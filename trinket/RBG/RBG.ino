@@ -69,20 +69,50 @@ This project transmits a bunch of TV POWER codes, one right after the other,
 #define FALSE 0
 #define TRUE 1
 
+#include "TinyWireS.h"
 
-void setup()   {
+#define I2C_SLAVE_ADDR 0x12
+void setup() {
 
- ir_init();
-  
-  
+    ir_init();
+    TinyWireS.begin(I2C_SLAVE_ADDR);
 }
 
+boolean isReady() {
+  if (TinyWireS.available()) {
+    byte c = TinyWireS.receive();  // grab byte from SPI Data Register
+
+    if (pos == 0) {
+      bufSize = c;
+      if (bufSize == 0 ) {
+        return false; // ignore weird shit
+      }
+      pos++;
+      return false;
+    }
+    if (pos == 1) {
+      bufSize = bufSize | (c << 8);
+      pos++;
+      return false;
+    }
+    
+    // add to buffer if room
+    if (pos < sizeof buf) {
+      buf [pos - 2] = c;
+      pos++;
+      // example: newline means time to process buffer
+      if ((pos - 2) == bufSize) {
+        pos = 0;
+        return true;
+      }
+        
+     }
+  }
+  return false;
+}
 // main loop - wait for flag set in interrupt routine
-void loop()
-{
-  if (process_it) {
-    pos = 0;
-    process_it = false;
+void loop() {
+  if(isReady()) {
     IrCode code = *(IrCode*)buf;
     
 #if DEBUG
@@ -118,9 +148,7 @@ void loop()
     putstring("\n");
 #endif
  
-    } else {
-     delay(1000);
-    } // end of flag set
+    } 
     
 }  // end of loop
 

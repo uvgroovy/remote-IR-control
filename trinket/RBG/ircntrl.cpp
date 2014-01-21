@@ -81,13 +81,29 @@ The hardware for this project is very simple:
 
 void delay_ten_us(uint16_t us);
 
+
+void ir_init() {
+
+
+  TCCR1 = 0;		   // Turn off PWM/freq gen, should be off already
+  TCCR0A = 0;
+  TCCR0B = 0;
+
+  // set the visible and IR LED pins to outputs
+  pinMode(IRLED, OUTPUT);
+
+  //  visible LED is off when pin is high
+  // IR LED is off when pin is high
+  digitalWrite(IRLED, HIGH);
+
+}
+
 /* This function is the 'workhorse' of transmitting IR codes.
    Given the on and off times, it turns on the PWM output on and off
    to generate one 'pair' from a long code. Each code has ~50 pairs! */
-void xmitCodeElement(uint16_t ontime, uint16_t offtime, uint8_t PWM_code )
-{
+void xmitCodeElement(uint16_t ontime, uint16_t offtime, uint8_t PWM_code ) {
   // start Timer0 outputting the carrier frequency to IR emitters on and OC0A 
-  // (PB0, pin 5)
+  // (PB1, pin 6)
   TCNT0 = 0; // reset the timers so they are aligned
   TIFR = 0;  // clean out the timer flags
 
@@ -95,7 +111,7 @@ void xmitCodeElement(uint16_t ontime, uint16_t offtime, uint8_t PWM_code )
     // 99% of codes are PWM codes, they are pulses of a carrier frequecy
     // Usually the carrier is around 38KHz, and we generate that with PWM
     // timer 0
-    TCCR0A =_BV(COM0A0) | _BV(WGM01);          // set up timer 0
+    TCCR0A =_BV(COM0B0) | _BV(WGM01);          // set up timer 0
     TCCR0B = _BV(CS00);
   } else {
     // However some codes dont use PWM in which case we just turn the IR
@@ -266,25 +282,6 @@ void sendCode(struct IrCode code, const uint16_t* times, const uint8_t* codes) {
 #endif
 }
 
-void ir_init() {
-
-
-  TCCR1 = 0;		   // Turn off PWM/freq gen, should be off already
-  TCCR0A = 0;
-  TCCR0B = 0;
-
-  // set the visible and IR LED pins to outputs
-  pinMode(IRLED, OUTPUT);
-  pinMode(LED, OUTPUT);
-
-  //  visible LED is off when pin is high
-  // IR LED is off when pin is high
-  digitalWrite(IRLED, HIGH);
-  digitalWrite(LED, LOW);
-
-}
-
-
 /****************************** LED AND DELAY FUNCTIONS ********/
 
 
@@ -307,40 +304,3 @@ void delay_ten_us(uint16_t us) {
 }
 
 
-// This function quickly pulses the visible LED (connected to PB0, pin 5)
-// This will indicate to the user that a code is being transmitted
-void quickflashLED( void ) {
-  PORTB &= ~_BV(LED);   // turn on visible LED at PB0 by pulling pin to ground
-  delay_ten_us(3000);   // 30 millisec delay
-  PORTB |= _BV(LED);    // turn off visible LED at PB0 by pulling pin to +3V
-}
-
-// This function just flashes the visible LED a couple times, used to
-// tell the user what region is selected
-void quickflashLEDx( uint8_t x ) {
-  quickflashLED();
-  while(--x) {
-  	wdt_reset();
-	delay_ten_us(15000);     // 150 millisec delay between flahes
-	quickflashLED();
-  }
-  wdt_reset();                // kick the dog
-}
-
-// This is like the above but way slower, used for when the tvbgone
-// crashes and wants to warn the user
-void flashslowLEDx( uint8_t num_blinks )
-{
-  uint8_t i;
-  for(i=0;i<num_blinks;i++)
-    {
-      // turn on visible LED at PB0 by pulling pin to ground
-      PORTB &= ~_BV(LED);    
-      delay_ten_us(50000);         // 500 millisec delay
-      wdt_reset();                 // kick the dog
-      // turn off visible LED at PB0 by pulling pin to +3V
-      PORTB |= _BV(LED);          
-      delay_ten_us(50000);	   // 500 millisec delay
-      wdt_reset();                 // kick the dog
-    }
-}
