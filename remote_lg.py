@@ -53,18 +53,35 @@ def sendCode(c):
     os.write(fd, getCode(*c))
     os.close(fd)
 
+def sync():
+    import wiringpi2
+    fd = wiringpi2.wiringPiSPISetup(0,500000)
+    os.write(fd, "\0"*257)
+    os.close(fd)
+
 def do():
     sendCode(sharp_off)
 
+def firecode():
+    l = sys.stdin.readline()
+    print "got code",l
+    sendCode(json.loads(l))
 
 def main():
-    import wiringpi2
-    wiringpi2.wiringPiSetup()
+    import argparse 
+    parser = argparse.ArgumentParser(description='')
+    
+    # Do not use the default paramter in the params that are also read from the config file!!
+    subparsers = parser.add_subparsers()
+    
+    command_subparser = subparsers.add_parser('firecode', help='Fire an IR code. this is done by writing to the SPI interface. hopfully someone will pickit up from there')
+    command_subparser.set_defaults(func=firecode)
 
-    while True:
-        l = sys.stdin.readline()
-        print "got code",l
-        sendCode(json.loads(l))
+    command_subparser = subparsers.add_parser('sync', help='Sync the microncontroller.')
+    command_subparser.set_defaults(func=sync)
+
+    args = parser.parse_args()
+    args.func()
 
 if __name__ == "__main__":
     main()
