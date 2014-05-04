@@ -269,20 +269,29 @@ ISR (SPI_STC_vect)
     return;
   }
   if (pos == 1) {
-    bufSize = bufSize | (c << 8);    
-    pos++;
+    bufSize = bufSize | (c << 8);
+    if (bufSize == 0) {
+      // restart...
+      pos = 0;
+    } else {
+      pos++;
+    }
     return;
   }
   
+  int posInBuffer = pos - 2;
   // add to buffer if room
-  if (pos < sizeof buf) {
-    buf [pos - 2] = c;
+  if (posInBuffer < sizeof buf) {
+    buf [posInBuffer] = c;
     pos++;
-    // example: newline means time to process buffer
-    if ((pos - 2) == bufSize)
+    if ((posInBuffer + 1) == bufSize)
       process_it = true;
       
-   }  // end of room available
+   }  else { 
+     // couldnt get command - temp buffer was full... restart
+     // should return something about it...
+     pos = 0;
+   }// end of room available
 }  // end of interrupt routine SPI_STC_vect
  
 // main loop - wait for flag set in interrupt routine
@@ -291,6 +300,11 @@ void loop()
   if (process_it) {
     pos = 0;
     process_it = false;
+    
+    if (bufSize < sizeof(IrCode)) {
+      return;
+    }
+    
     IrCode code = *(IrCode*)buf;
     
 #if DEBUG
